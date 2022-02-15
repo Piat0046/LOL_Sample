@@ -1,0 +1,1 @@
+web: gunicorn --worker=1 'flask_app:crate_app'
