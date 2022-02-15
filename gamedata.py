@@ -10,7 +10,7 @@ request_header = {
                     "Accept-Language": "ko,en-US;q=0.9,en;q=0.8,es;q=0.7",
                     "Accept-Charset": "application/x-www-form-urlencoded; charset=UTF-8",
                     "Origin": "https://developer.riotgames.com",
-                    "X-Riot-Token": 'RGAPI-e4805826-5ded-46f5-b93c-aeb543c5870b'
+                    "X-Riot-Token": 'RGAPI-0ddd5219-8be2-4ed6-8a63-8f2a564dfb60' #sbs00046
                 }
 
 def check(url):
@@ -103,7 +103,7 @@ conn.commit()
 cur.close
 conn.close
 
-for i in tqdm(gameId_list[205:]):
+for i in tqdm(gameId_list[1100:10000]):
     try:
         gamedata(i)
     except:
