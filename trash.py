@@ -1,167 +1,166 @@
-from http import client
-from xml.dom.minidom import Document
-from pymongo import MongoClient
-import certifi
+from tracemalloc import stop
+import requests
+import json
+import time
+import pprint
 import pandas as pd
+from urllib import parse
+pp = pprint.PrettyPrinter(indent=4)
+request_header = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36",
+                    "Accept-Language": "ko,en-US;q=0.9,en;q=0.8,es;q=0.7",
+                    "Accept-Charset": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "Origin": "https://developer.riotgames.com",
+                    "X-Riot-Token": 'RGAPI-73e288ef-e47e-4716-a487-13c0df8f9c8e'
+                }
 
-col = ['gameid','win_team','1','1score','2','2score','3','3score','4','4score','5','5score','6','6score','7','7score','8','8score','9','9score','10','10score']
-learn_data = pd.DataFrame(columns = col)
-
-##몽고db 계정정보
-HOST = 'cluster0.l3phm.mongodb.net'
-USER = 'jhp0046'
-PASSWORD = 'qkrwlgns0046'
-DATABASE_NAME = 'myFirstDatabase'
-COLLECTION_NAME = 'loldata'
-MONGO_URI = f"mongodb+srv://{USER}:{PASSWORD}@{HOST}/{DATABASE_NAME}?retryWrites=true&w=majority"
-ca = certifi.where()
-
-client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
-
-db = client[DATABASE_NAME]
-
-col = db[COLLECTION_NAME]
-
-doc = col.find({})
-
-game_data = []
-
-for i in doc:
-    game_data.append(i)
-
-game_data = game_data[95:]
-
-import sqlite3
-
-conn = sqlite3.connect('loldata.db') # 데이터 베이스 생성
-cur = conn.cursor()
-
-cur.execute("DROP TABLE IF EXISTS Match_data;")
-
-cur.execute(f"""CREATE TABLE Match_data (
-                "Id" INTEGER NOT NULL PRIMARY KEY,
-                "gameid" NVARCHAR(160) NOT NULL,
-                "win_team" NVARCHAR(160) NOT NULL,
-                "1pick" INTEGER NOT NULL,
-                "1score" INTEGER NOT NULL,
-                "2pick" INTEGER NOT NULL,
-                "2score" INTEGER NOT NULL,
-                "3pick" INTEGER NOT NULL,
-                "3score" INTEGER NOT NULL,
-                "4pick" INTEGER NOT NULL,
-                "4score" INTEGER NOT NULL,
-                "5pick" INTEGER NOT NULL,
-                "5score" INTEGER NOT NULL,
-                "6pick" INTEGER NOT NULL,
-                "6score" INTEGER NOT NULL,
-                "7pick" INTEGER NOT NULL,
-                "7score" INTEGER NOT NULL,
-                "8pick" INTEGER NOT NULL,
-                "8score" INTEGER NOT NULL,
-                "9pick" INTEGER NOT NULL,
-                "9score" INTEGER NOT NULL,
-                "10pick" INTEGER NOT NULL,
-                "10score" INTEGER NOT NULL               
-                )
-                ;""")
-
-conn.commit()
-cur.close
-conn.close
+# for문 진행률 확인 라이브러리
 from tqdm import tqdm
-for i in tqdm(range(len(game_data))):
-    try:
-        keys = list(game_data[i].keys())
-        gamedata = game_data[i]
-        input_data = {'gameid': keys[1],
-                      'win_team': gamedata[keys[1]],
-                      '1' : gamedata[keys[2]][1],
-                      '1score' : gamedata[keys[2]][0],
-                      '2' : gamedata[keys[3]][1],
-                      '2score' : gamedata[keys[3]][0],
-                      '3' : gamedata[keys[4]][1],
-                      '3score' : gamedata[keys[4]][0],
-                      '4' : gamedata[keys[5]][1],
-                      '4score' : gamedata[keys[5]][0],
-                      '5' : gamedata[keys[6]][1],
-                      '5score' : gamedata[keys[6]][0],
-                      '6' : gamedata[keys[7]][1],
-                      '6score' : gamedata[keys[7]][0],
-                      '7' : gamedata[keys[8]][1],
-                      '7score' : gamedata[keys[8]][0],
-                      '8' : gamedata[keys[9]][1],
-                      '8score' : gamedata[keys[9]][0],
-                      '9' : gamedata[keys[10]][1],
-                      '9score' : gamedata[keys[10]][0],
-                      '10' : gamedata[keys[11]][1],
-                      '10score' : gamedata[keys[11]][0],
-                      }
-        import sqlite3
 
-        conn = sqlite3.connect('loldata.db') # 데이터 베이스 생성
-        cur = conn.cursor()
-
-
-        cur.execute(f"""INSERT OR REPLACE INTO Match_data("Id", "gameid", "win_team",  "1pick", "1score",
-                                                                                        "2pick", "2score",
-                                                                                        "3pick", "3score",
-                                                                                        "4pick", "4score",
-                                                                                        "5pick", "5score",
-                                                                                        "6pick", "6score",
-                                                                                        "7pick", "7score",
-                                                                                        "8pick", "8score",
-                                                                                        "9pick", "9score",
-                                                                                        "10pick", "10score"
-                                                                            )
-                    VALUES ({i},?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);""", list(input_data.values()))
-
-        conn.commit()
-        cur.close
-        conn.close
-
-        learn_data = learn_data.append(input_data, ignore_index=True)
-    except:
+def check(url):
+    r = requests.get(url, headers=request_header)
+    if r.status_code == 200: # response가 정상이면 바로 맨 밑으로 이동하여 정상적으로 코드 실행
         pass
+    
+    elif r.status_code == 429:
+        print('api cost full : infinite loop start')
+        start_time = time.time()
+        
+        while True: # 429error가 끝날 때까지 무한 루프
+            if r.status_code == 429:
 
-df = learn_data
-df = df.drop_duplicates()
-df = df.drop(['gameid'],axis =1) 
-df = df.reset_index(drop = True)
+                print('try 10 second wait time')
+                time.sleep(10)
 
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.model_selection import KFold
- 
-train, val =  train_test_split(df, test_size=0.2, train_size= 0.8, random_state=10)
-target = 'win_team'
-features = train.drop(columns=[target]).columns
+                r = requests.get(url, headers=request_header)
+                print(r.status_code)
 
-X_train = train[features]
-y_train = train[target]
+            elif r.status_code == 200: #다시 response 200이면 loop escape
+                print('total wait time : ', time.time() - start_time)
+                print('recovery api cost')
+                break
 
-X_val = val[features]
-y_val = val[target]
+def check2(url):
+    r = requests.get(url, headers=request_header)
+    if r.status_code == 200: # response가 정상이면 바로 맨 밑으로 이동하여 정상적으로 코드 실행
+        m = 'pass'
+        pass
+    elif r.status_code == 403:
+        m = 'pass'
+    elif r.status_code == 429:
+        print('api cost full : infinite loop start')
+        start_time = time.time()
+        
+        while True: # 429error가 끝날 때까지 무한 루프
+            if r.status_code == 429:
 
-from category_encoders import OrdinalEncoder
-encoder = OrdinalEncoder()
-X_train_encoded = encoder.fit_transform(X_train)
-X_val_encoded = encoder.transform(X_val)
+                print('try 10 second wait time')
+                time.sleep(10)
 
-from xgboost import XGBClassifier
-from sklearn.model_selection import GridSearchCV
-xgb = XGBClassifier(n_jobs=-1,
-                    random_state = 10)
+                r = requests.get(url, headers=request_header)
+                print(r.status_code)
 
-dists = {'n_estimators' : [100,200,300,400,500,600],
-        'learning_rate': [0.1, 0.2, 0.3],
-        'max_depth' : [4,5,6,7]
-        }
+            elif r.status_code == 200: #다시 response 200이면 loop escape
+                print('total wait time : ', time.time() - start_time)
+                print('recovery api cost')
+                m = 'pass'
+                break
 
-clf_xgb = GridSearchCV(
-    xgb, 
-    param_grid = dists,  
-    cv=3, 
-    scoring='f1',  
-    verbose=1,
-    )
+            else:
+                m = 'fail'
+                break
+    
+    else:
+        m = 'fail'
+    return m
 
-print(clf_xgb.fit(X_train_encoded, y_train))
+nick = 'DRX 홍창현'.replace(" ", "")
+url_nick = f'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{parse.quote_plus(nick)}'
+m = check2(url_nick)
+if m == 'fail':
+    m = '소환사를 찾을 수 없습니다.'
+    print('소환사를 찾을 수 없습니다.')
+
+elif m == 'pass':
+    nick_to_id = requests.get(url_nick, headers=request_header).json()
+    input_id = nick_to_id['id']
+
+    url_game = f'https://kr.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/{input_id}'
+    m = check2(url_game)
+    
+    if m == 'fail':
+        m = '소환사가 게임중이 아닙니다'
+        print('소환사가 게임중이 아닙니다')
+
+    elif m == 'pass':
+
+        data = requests.get(url_game, headers=request_header).json()
+
+        dic = []
+        for i in range(0,10):
+            summoner_Id = data['participants'][i]['summonerId']
+            dic.append(summoner_Id)
+        print(dic)
+
+        dic = []
+
+        for i in range(0,10):
+            champ_id = data['participants'][i]['championId']
+            summoner_Id = data['participants'][i]['summonerId']
+            champ_status_url = f"https://kr.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-summoner/{summoner_Id}/by-champion/{champ_id}"
+            m = check2(champ_status_url)
+            print(m)
+            champ_status = requests.get(champ_status_url, headers=request_header).json()
+            champ_point = champ_status['championPoints']
+            dic.append(champ_id)
+            dic.append(champ_point)
+
+        from flask import Flask, render_template, request
+        import pickle
+        import sqlite3
+        import pandas as pd
+        from xgboost import XGBClassifier
+        #def create_app():
+
+        app = Flask(__name__)
+
+        model = None
+
+        with open('model4.pkl', 'rb') as file:
+            model = pickle.load(file)
+
+        columns = ['1', '1score', '2', '2score', '3', '3score', '4', '4score', '5', '5score', '6', '6score', '7', '7score', '8', '8score', '9', '9score', '10', '10score']
+        df = pd.DataFrame(columns = columns)
+        input_data = {
+                    '1' : dic[0],
+                    '1score' : dic[1],
+                    '2' : dic[2],
+                    '2score' :dic[3],
+                    '3' : dic[4],
+                    '3score' : dic[5],
+                    '4' : dic[6],
+                    '4score' : dic[7],
+                    '5' : dic[8],
+                    '5score' : dic[9],
+                    '6' : dic[10],
+                    '6score' : dic[11],
+                    '7' : dic[12],
+                    '7score' : dic[13],
+                    '8' : dic[14],
+                    '8score' : dic[15],
+                    '9' : dic[16],
+                    '9score' : dic[17],
+                    '10' : dic[18],
+                    '10score' : dic[19],
+                    }
+        X_test = df.append(input_data, ignore_index=True)
+        X_test = X_test.astype(int)
+        y_pred = list(model.predict(X_test))[0]
+        c=model.predict_proba(X_test).reshape(-1,1)
+
+        if y_pred == 200:
+            y_pred = '레드팀'
+        else:
+            y_pred = '블루팀'
+
+        print(f'예상승리팀={y_pred}, 예상 확률 블루팀={int(list(c[0])[0]*100)}%, 레드팀{int(list(c[1])[0]*100)}% ')
